@@ -30,6 +30,7 @@ import (
 	cid "github.com/ipfs/go-cid"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	exchange "github.com/ipfs/go-ipfs-exchange-interface"
+	"github.com/ipfs/go-ipfs-pinner"
 	logging "github.com/ipfs/go-log"
 	metrics "github.com/ipfs/go-metrics-interface"
 	process "github.com/jbenet/goprocess"
@@ -183,13 +184,13 @@ func New(parent context.Context, network bsnet.BitSwapNetwork,
 	sm = bssm.New(ctx, sessionFactory, sim, sessionPeerManagerFactory, bpm, pm, notif, network.Self())
 
 	bs := &Bitswap{
-		blockstore:       bstore,
-		network:          network,
-		process:          px,
-		newBlocks:        make(chan cid.Cid, HasBlockBufferSize),
-		provideKeys:      make(chan cid.Cid, provideKeysBufferSize),
-		pm:               pm,
-		pqm:              pqm,
+		blockstore:              bstore,
+		network:                 network,
+		process:                 px,
+		newBlocks:               make(chan cid.Cid, HasBlockBufferSize),
+		provideKeys:             make(chan cid.Cid, provideKeysBufferSize),
+		pm:                      pm,
+		pqm:                     pqm,
 		sm:                      sm,
 		sim:                     sim,
 		notif:                   notif,
@@ -201,6 +202,8 @@ func New(parent context.Context, network bsnet.BitSwapNetwork,
 		provSearchDelay:         defaultProvSearchDelay,
 		rebroadcastDelay:        delay.Fixed(time.Minute),
 		engineBstoreWorkerCount: defaulEngineBlockstoreWorkerCount,
+		// TODO 传入或者创建有效的pinner
+		pinner: nil,
 	}
 
 	// apply functional options before starting and running bitswap
@@ -293,6 +296,8 @@ type Bitswap struct {
 
 	// the score ledger used by the decision engine
 	engineScoreLedger deciface.ScoreLedger
+
+	pinner pin.Pinner
 }
 
 type counters struct {
@@ -355,11 +360,13 @@ func (bs *Bitswap) receiveBlocksFrom(ctx context.Context, from peer.ID, blks []b
 		return errors.New("bitswap is closed")
 	default:
 	}
-
+	fmt.Printf("recive block from %s ", from.String())
 	wanted := blks
 
+	// TODO 根据身份切换策略
+	// client 端
 	// If blocks came from the network
-	if from != "" {
+	/*if from != "" {
 		var notWanted []blocks.Block
 		wanted, notWanted = bs.sim.SplitWantedUnwanted(blks)
 		for _, b := range notWanted {
@@ -367,6 +374,11 @@ func (bs *Bitswap) receiveBlocksFrom(ctx context.Context, from peer.ID, blks []b
 		}
 	}
 
+
+	*/
+
+	// server 端
+	// todo 验证文件发送方的身份是否合法(此项验证应该移到节点连接时)
 	// Put wanted blocks into blockstore
 	if len(wanted) > 0 {
 		err := bs.blockstore.PutMany(wanted)
@@ -374,6 +386,13 @@ func (bs *Bitswap) receiveBlocksFrom(ctx context.Context, from peer.ID, blks []b
 			log.Errorf("Error writing %d blocks to datastore: %s", len(wanted), err)
 			return err
 		}
+
+		// server
+		// todo pin and provide block
+		/*for _, block := range wanted {
+			bs.pinner.PinWithMode(block.Cid(),pin.Direct)
+		}*/
+
 	}
 
 	// NOTE: There exists the possiblity for a race condition here.  If a user
@@ -438,7 +457,7 @@ func (bs *Bitswap) ReceiveMessage(ctx context.Context, p peer.ID, incoming bsmsg
 	bs.counterLk.Lock()
 	bs.counters.messagesRecvd++
 	bs.counterLk.Unlock()
-
+	//fmt.Printf("%s请求%s",p.String(),incoming.Wantlist())
 	// This call records changes to wantlists, blocks received,
 	// and number of bytes transfered.
 	bs.engine.MessageReceived(ctx, p, incoming)
@@ -471,6 +490,7 @@ func (bs *Bitswap) ReceiveMessage(ctx context.Context, p peer.ID, incoming bsmsg
 }
 
 func (bs *Bitswap) updateReceiveCounters(blocks []blocks.Block) {
+
 	// Check which blocks are in the datastore
 	// (Note: any errors from the blockstore are simply logged out in
 	// blockstoreHas())

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	bsmsg "github.com/ipfs/go-bitswap/message"
 	"io/ioutil"
 	"math"
 	"math/rand"
@@ -19,9 +20,9 @@ import (
 
 	bitswap "github.com/ipfs/go-bitswap"
 	bssession "github.com/ipfs/go-bitswap/internal/session"
+	bsnet "github.com/ipfs/go-bitswap/network"
 	testinstance "github.com/ipfs/go-bitswap/testinstance"
 	tn "github.com/ipfs/go-bitswap/testnet"
-	bsnet "github.com/ipfs/go-bitswap/network"
 	cid "github.com/ipfs/go-cid"
 	delay "github.com/ipfs/go-ipfs-delay"
 	mockrouting "github.com/ipfs/go-ipfs-routing/mock"
@@ -678,4 +679,326 @@ func fmtDuration(d time.Duration) string {
 	d -= s * time.Second
 	ms := d / time.Millisecond
 	return fmt.Sprintf("%d.%03ds", s, ms)
+}
+
+func TestAllocatingBlocks(t *testing.T) {
+	blockList := []blocks.Block{blocks.NewBlock([]byte("0")), blocks.NewBlock([]byte("1"))}
+	var serverList []string
+	for i := 0; i < 100; i++ {
+		serverList = append(serverList, strconv.Itoa(i))
+	}
+	for i := 2; i < 1000; i++ {
+		blockList = append(blockList, blocks.NewBlock([]byte(strconv.Itoa(i))))
+		AllocatingBlocks(blockList, serverList, t)
+	}
+}
+
+type BlockBackupTar struct {
+	block     blocks.Block
+	backupTar int
+}
+
+func TestAllocatingBlocksWithOrg(t *testing.T) {
+	blockList := []BlockBackupTar{{
+		block:     blocks.NewBlock([]byte("0")),
+		backupTar: 1,
+	}, {
+		block:     blocks.NewBlock([]byte("0")),
+		backupTar: 2,
+	}}
+	var serverList []peers
+	backupMap := map[string]map[string]int{}
+	for i := 0; i < 3; i++ {
+		orgName := fmt.Sprintf("org%d", i)
+		for i1 := 0; i1 < 2; i1++ {
+			serverList = append(serverList, peers{peerId: fmt.Sprint(i1), org: orgName})
+		}
+		// 模拟已有备份时
+		backupMap[orgName] = map[string]int{}
+		if i == 0 {
+			backupMap[orgName] = map[string]int{"QmVaPTddRyjLjMoZnYufWc5M5CjyGNPmFEpp5HtPKEqZFG": 1}
+		}
+	}
+	for i := 2; i < 3; i++ {
+		fmt.Printf("***分片数为%v时***\n", i+1)
+		blockList = append(blockList, BlockBackupTar{
+			block:     blocks.NewBlock([]byte(strconv.Itoa(i))),
+			backupTar: 2,
+		})
+		err := AllocatingBlocksWithOrg(blockList, serverList, backupMap)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for s, m2 := range backupMap {
+			fmt.Printf("组织%s获得分片：%#v\n", s, m2)
+		}
+	}
+}
+
+type peers struct {
+	org    string
+	peerId string
+}
+
+/* 描述:
+ * 前置状态:
+ * 后置状态:
+ */
+func AllocatingBlocksWithOrg(blockList []BlockBackupTar, serverList []peers, backupMap map[string]map[string]int) error {
+	// 1. 分配给不同的组织，需要根据组织所拥有的节点来考虑
+	// 组织数大于等于3
+	orgMap := map[string][]string{}
+	var orgList []string
+	peerNum := len(serverList)
+	for _, p := range serverList {
+		orgMap[p.org] = append(orgMap[p.org], p.peerId)
+		orgList = append(orgList, p.org)
+	}
+	orgNum := len(orgList)
+	if orgNum < 3 {
+		return fmt.Errorf("组织数小于3")
+	}
+
+	max := len(blockList)
+	for i1, b := range blockList {
+		i2 := i1
+		times := 0
+		backupNum := 0
+		for ; times < peerNum; times++ {
+			i2 %= orgNum
+			orgName := orgList[i2]
+			// 该组织已有备份数大于等于节点数，不再分配
+			if backupMap[orgName][b.block.Cid().String()] >= len(orgMap[orgName]) {
+				i2++
+				times--
+				continue
+			}
+
+			//该组织已拥有max-1个分片，不再分配
+			if len(backupMap[orgName]) >= max-1 {
+				i2++
+				continue
+			}
+
+			// 将该块分配给该组织
+			temp := backupMap[orgName]
+			temp[b.block.Cid().String()] = backupMap[orgName][b.block.Cid().String()] + 1
+			backupMap[orgName] = temp
+			backupNum++
+			if backupNum == b.backupTar {
+				break
+			}
+		}
+		if backupNum != b.backupTar {
+			return fmt.Errorf("block%s备份数为%v", b.block.Cid().String(), b.backupTar)
+		}
+	}
+	return nil
+}
+
+func AllocatingBlocks(blockList []blocks.Block, serverList []string, t *testing.T) {
+	m := map[string]bsmsg.BitSwapMessage{}
+
+	for _, s := range serverList {
+		m[s] = bsmsg.New(false)
+	}
+
+	max := len(blockList)
+	backupTar := 2
+	peerNum := len(serverList)
+	for i1, block := range blockList {
+		backup := 0
+		times := 0
+		i2 := i1
+		for ; times < peerNum; times++ {
+			i2 %= peerNum
+			if m[serverList[i2]].BlockExist(block.Cid()) {
+				i2++
+				continue
+			}
+			if m[serverList[i2]].BlockNum() >= max-1 {
+				i2++
+				continue
+			}
+			m[serverList[i2]].AddBlock(block)
+			i2++
+			backup++
+			if backup == backupTar {
+				break
+			}
+		}
+		if backup != backupTar {
+			t.Fatal("当blockNum为", len(blockList), "时备份数量错误")
+		}
+	}
+}
+
+type peerId string
+
+type org map[peerId]blockBackupInfo
+
+type blockBackupInfo map[blocks.Block]int
+
+func backupInfoSum(bbi1 blockBackupInfo, bbi2 blockBackupInfo) blockBackupInfo {
+	for block, i := range bbi2 {
+		bbi1[block] += i
+	}
+	return bbi1
+}
+
+type peerBackupInfo struct {
+	orgName         string
+	peerId          peerId
+	blockBackupInfo blockBackupInfo
+}
+
+// 返回结果 []backupResult
+type backupResult struct {
+	orgName string
+	peerId  string
+	blocks  backup
+}
+
+// 约束结构
+// len(backup) < max - 1
+// backup[any] < peerNum
+type orgBackupInfo struct {
+	backup  backup
+	orgName string
+	peerNum int
+}
+
+type backup map[blocks.Block]int
+
+func backupSum(b1 backup, b2 backup) backup {
+	for block, i := range b2 {
+		b1[block] += i
+	}
+	return b1
+}
+
+func AllocatingBlocksFinal(serverList []backupResult, bList []BlockBackupTar) error {
+	blockNum := len(bList)
+	// 构造返回结果和约束结构
+	orgInfo := map[string]orgBackupInfo{}
+
+	for _, peer := range serverList {
+		b := map[blocks.Block]int{}
+		if orgInfo[peer.orgName].backup != nil {
+			b = orgInfo[peer.orgName].backup
+		}
+		orgInfo[peer.orgName] = orgBackupInfo{
+			backup:  backupSum(b, peer.blocks),
+			orgName: peer.orgName,
+			peerNum: orgInfo[peer.orgName].peerNum + 1,
+		}
+	}
+
+	serverNum := len(serverList)
+	// 开始循环分配
+	for i1, tar := range bList {
+		// 错开查询的起始
+		i2 := i1
+		// 有效循环次数
+		times := 0
+		// 当前备份数量
+		backupNum := 0
+		// 最多循环节点数的次数，保证每一次都查询了所有节点
+		for ; times < serverNum; times++ {
+			i2 %= serverNum
+			server := serverList[i2]
+			orgName := server.orgName
+			info := orgInfo[orgName]
+			// 该组织已有该文件片备份数大于等于节点数，不再分配
+			if info.backup[tar.block] > info.peerNum {
+				i2++
+				continue
+			}
+			// 该组织已拥有max-1个分片，不再分配
+			if len(info.backup) >= blockNum-1 {
+				i2++
+				continue
+			}
+			// 该节点已经拥有该文件片，不再分配
+
+			if server.blocks[tar.block] > 0 {
+				i2++
+				continue
+			}
+			// 将该块分配给该节点，组织记录
+			temp := server.blocks
+			temp[tar.block] = 1
+			server.blocks = temp
+			serverList[i2] = server
+
+			temp = info.backup
+			temp[tar.block] += 1
+			info.backup = temp
+			orgInfo[orgName] = info
+
+			i2++
+			backupNum++
+
+			// 达到备份需求时结束
+			if backupNum >= tar.backupTar {
+				break
+			}
+		}
+		if backupNum < tar.backupTar {
+			return fmt.Errorf("block%s备份数为%v", tar.block.Cid().String(), backupNum)
+		}
+	}
+	return nil
+}
+
+func TestAllocatingBlocksFinal(t *testing.T) {
+	var serverList []backupResult
+	var bList = []BlockBackupTar{{
+		block:     blocks.NewBlock([]byte("0")),
+		backupTar: 1,
+	}, {
+		block:     blocks.NewBlock([]byte("1")),
+		backupTar: 1,
+	}}
+	for i := 0; i < 3; i++ {
+		// 模拟组织和节点
+		orgName := fmt.Sprintf("org%v", i)
+		for j := 0; j < 2; j++ {
+			serverList = append(serverList, backupResult{
+				orgName: orgName,
+				peerId:  fmt.Sprintf("%speer%v", orgName, j),
+				blocks:  map[blocks.Block]int{},
+			})
+		}
+	}
+	// 模拟节点已有备份
+	m := map[blocks.Block]int{}
+	for i := 0; i < 2; i++ {
+		m[blocks.NewBlock([]byte(strconv.Itoa(i)))] = 1
+	}
+
+	serverList[0] = backupResult{
+		orgName: "org1",
+		peerId:  fmt.Sprintf("%speer%v", "org0", "0"),
+		blocks:  m,
+	}
+
+	for i := 2; i < 3; i++ {
+
+		bList = append(bList, BlockBackupTar{
+			block:     blocks.NewBlock([]byte(strconv.Itoa(i))),
+			backupTar: 2,
+		})
+	}
+	err := AllocatingBlocksFinal(serverList, bList)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Printf("***分片数为%v时***\n", len(bList))
+	for _, result := range serverList {
+		fmt.Printf("***节点%s获得分片：%v片***\n", result.peerId, len(result.blocks))
+		for block, i2 := range result.blocks {
+			fmt.Printf("分片：%s，数量：%v\n", block.Cid().String(), i2)
+		}
+	}
 }

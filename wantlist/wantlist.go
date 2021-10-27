@@ -20,6 +20,8 @@ type Entry struct {
 	Cid      cid.Cid
 	Priority int32
 	WantType pb.Message_Wantlist_WantType
+
+	Aid string
 }
 
 // NewRefEntry creates a new reference tracked wantlist entry.
@@ -28,6 +30,15 @@ func NewRefEntry(c cid.Cid, p int32) Entry {
 		Cid:      c,
 		Priority: p,
 		WantType: pb.Message_Wantlist_Block,
+	}
+}
+
+func NewRefEntryAuth(c cid.Cid, p int32, aid string) Entry {
+	return Entry{
+		Cid:      c,
+		Priority: p,
+		WantType: pb.Message_Wantlist_Block,
+		Aid:      aid,
 	}
 }
 

@@ -20,6 +20,9 @@ import (
 // BitSwapMessage is the basic interface for interacting building, encoding,
 // and decoding messages sent on the BitSwap protocol.
 type BitSwapMessage interface {
+	BlockNum() int
+
+	BlockExist(c cid.Cid) bool
 	// Wantlist returns a slice of unique keys that represent data wanted by
 	// the sender.
 	Wantlist() []Entry
@@ -147,6 +150,17 @@ type impl struct {
 	blocks         map[cid.Cid]blocks.Block
 	blockPresences map[cid.Cid]pb.Message_BlockPresenceType
 	pendingBytes   int32
+}
+
+// BlockExist 校验是否存在
+func (m *impl) BlockNum() int {
+	return len(m.blocks)
+}
+
+// BlockExist 校验是否存在
+func (m *impl) BlockExist(c cid.Cid) bool {
+	_, exist := m.blocks[c]
+	return exist
 }
 
 // New returns a new, empty bitswap message

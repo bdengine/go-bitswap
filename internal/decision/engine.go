@@ -4,6 +4,8 @@ package decision
 import (
 	"context"
 	"fmt"
+	"github.com/ipfs/go-ipfs-auth/selector"
+	"github.com/ipfs/go-merkledag"
 	"sync"
 	"time"
 
@@ -163,7 +165,7 @@ type Engine struct {
 
 	sendDontHaves bool
 
-	self                  peer.ID
+	self peer.ID
 }
 
 // NewEngine creates a new block sending engine for the given block store
@@ -361,6 +363,17 @@ func (e *Engine) nextEnvelope(ctx context.Context) (*Envelope, error) {
 
 		for c, t := range blockTasks {
 			blk := blks[c]
+			pn, err := merkledag.DecodeProtobuf(blk.RawData())
+			if err == nil {
+				info := pn.GetPBNode().BlockInfo
+				_, _, auth, _ := cid.ParseBlocInfo(*info)
+				if auth == cid.Auth_Y {
+					_, err := selector.ResponseApply(c.String(), p.String())
+					if err != nil {
+						continue
+					}
+				}
+			}
 			// If the block was not found (it has been removed)
 			if blk == nil {
 				// If the client requested DONT_HAVE, add DONT_HAVE to the message
@@ -436,7 +449,6 @@ func (e *Engine) MessageReceived(ctx context.Context, p peer.ID, m bsmsg.BitSwap
 	if m.Empty() {
 		log.Infof("received empty message from %s", p)
 	}
-
 	newWorkExists := false
 	defer func() {
 		if newWorkExists {

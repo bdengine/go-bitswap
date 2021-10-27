@@ -239,6 +239,7 @@ func (s *Session) GetBlocks(ctx context.Context, keys []cid.Cid) (<-chan blocks.
 	ctx = logging.ContextWithLoggable(ctx, s.uuid)
 
 	return bsgetter.AsyncGetBlocks(ctx, s.ctx, keys, s.notif,
+		// want func
 		func(ctx context.Context, keys []cid.Cid) {
 			select {
 			case s.incoming <- op{op: opWant, keys: keys}:
@@ -246,6 +247,7 @@ func (s *Session) GetBlocks(ctx context.Context, keys []cid.Cid) (<-chan blocks.
 			case <-s.ctx.Done():
 			}
 		},
+		// cwant
 		func(keys []cid.Cid) {
 			select {
 			case s.incoming <- op{op: opCancel, keys: keys}:

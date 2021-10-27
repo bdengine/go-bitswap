@@ -3,12 +3,13 @@ package bitswap
 import (
 	"context"
 	"fmt"
-
 	engine "github.com/ipfs/go-bitswap/internal/decision"
+	bsmsg "github.com/ipfs/go-bitswap/message"
 	pb "github.com/ipfs/go-bitswap/message/pb"
 	cid "github.com/ipfs/go-cid"
 	process "github.com/jbenet/goprocess"
 	procctx "github.com/jbenet/goprocess/context"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"go.uber.org/zap"
 )
 
@@ -105,6 +106,25 @@ func (bs *Bitswap) logOutgoingBlocks(env *engine.Envelope) {
 			"local", self,
 			"to", env.Peer,
 		)
+	}
+}
+
+/* 描述: 向指定的节点发送消息
+ * 前置状态: message内容正确填装，节点正确且能连接到
+ * 后置状态: 发送message，忽略是否成功
+ */
+func (bs *Bitswap) SendBlocks(ctx context.Context, idString string, message bsmsg.BitSwapMessage) {
+	id, _ := peer.Decode(idString)
+	if !message.Empty() {
+		envelope := &engine.Envelope{
+			Peer:    id,
+			Message: message,
+			// 发送成功的回调，暂时设置为空
+			Sent: func() {
+				return
+			},
+		}
+		bs.sendBlocks(ctx, envelope)
 	}
 }
 
