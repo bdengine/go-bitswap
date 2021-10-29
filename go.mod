@@ -39,7 +39,7 @@ replace (
     github.com/ipfs/go-ipfs-auth/standard v0.0.0 => ../go-ipfs-auth/standard
     github.com/ipfs/go-ipfs-auth/auth-source-fabric v0.0.0 => ../go-ipfs-auth/auth-source-fabric
 	github.com/ipfs/go-cid => ../ipld/cid/go-cid
-	github.com/ipfs/go-merkledag => ../ipld/go-merkledag
+	github.com/ipfs/go-merkledag => ../ipld/go-ipld-merkledag
 )
 
 go 1.12
