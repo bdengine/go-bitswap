@@ -35,9 +35,9 @@ require (
 )
 
 replace (
-	github.com/ipfs/go-ipfs-auth/selector v0.0.0 => ../go-ipfs-auth/selector
-    github.com/ipfs/go-ipfs-auth/standard v0.0.0 => ../go-ipfs-auth/standard
-    github.com/ipfs/go-ipfs-auth/auth-source-fabric v0.0.0 => ../go-ipfs-auth/auth-source-fabric
+	github.com/ipfs/go-ipfs-auth/selector  => ../go-ipfs-auth/selector
+    github.com/ipfs/go-ipfs-auth/standard  => ../go-ipfs-auth/standard
+    github.com/ipfs/go-ipfs-auth/auth-source-fabric  => ../go-ipfs-auth/auth-source-fabric
 	github.com/ipfs/go-cid => ../ipld/cid/go-cid
 	github.com/ipfs/go-merkledag => ../ipld/go-ipld-merkledag
 )
