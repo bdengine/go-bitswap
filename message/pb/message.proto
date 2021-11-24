@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 package bitswap.message.pb;
+option go_package = "./pb;bitswap_message_pb";
 
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
@@ -38,9 +39,26 @@ message Message {
     BlockPresenceType type = 2;
   }
 
+
+  message BackupLoad{
+    repeated string TargetPeerList = 1;
+    string IdHash = 2;
+    Block block = 3;
+  }
+
+
+  message DeleteLoad {
+    string Uid = 1;
+    repeated string Cid = 2;
+  }
+
   Wantlist wantlist = 1 [(gogoproto.nullable) = false];
   repeated bytes blocks = 2;		// used to send Blocks in bitswap 1.0.0
   repeated Block payload = 3 [(gogoproto.nullable) = false];		// used to send Blocks in bitswap 1.1.0
   repeated BlockPresence blockPresences = 4 [(gogoproto.nullable) = false];
   int32 pendingBytes = 5;
+
+  repeated BackupLoad backupLoad = 6;
+  repeated DeleteLoad deleteLoad = 7;
+
 }

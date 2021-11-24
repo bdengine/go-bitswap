@@ -43,6 +43,12 @@ type BitSwapMessage interface {
 	// AddEntry adds an entry to the Wantlist.
 	AddEntry(key cid.Cid, priority int32, wantType pb.Message_Wantlist_WantType, sendDontHave bool) int
 
+	// AddBackupLoad adds an entry to the Wantlist.
+	AddBackupLoad(t []string, i string, b blocks.Block) int
+
+	// AddBackupLoad adds an entry to the Wantlist.
+	BackupLoad() []Load
+
 	// Cancel adds a CANCEL for the given CID to the message
 	// Returns the size of the CANCEL entry in the protobuf
 	Cancel(key cid.Cid) int
@@ -149,7 +155,31 @@ type impl struct {
 	wantlist       map[cid.Cid]*Entry
 	blocks         map[cid.Cid]blocks.Block
 	blockPresences map[cid.Cid]pb.Message_BlockPresenceType
+	backupLoad     []Load
 	pendingBytes   int32
+}
+
+type Load struct {
+	TargetPeerList []string
+	IdHash         string
+	Block          blocks.Block
+}
+
+func (l *Load) Size() int {
+	toPB := l.ToPB()
+	return toPB.Size()
+}
+
+func (l *Load) ToPB() pb.Message_BackupLoad {
+	return pb.Message_BackupLoad{
+		TargetPeerList: l.TargetPeerList,
+		IdHash:         l.IdHash,
+		Block: &pb.Message_Block{
+			Prefix: l.Block.Cid().Prefix().Bytes(),
+			Data:   l.Block.RawData(),
+		},
+	}
+
 }
 
 // BlockExist 校验是否存在
@@ -326,6 +356,24 @@ func (m *impl) Cancel(k cid.Cid) int {
 
 func (m *impl) AddEntry(k cid.Cid, priority int32, wantType pb.Message_Wantlist_WantType, sendDontHave bool) int {
 	return m.addEntry(k, priority, false, wantType, sendDontHave)
+}
+
+func (m *impl) AddBackupLoad(t []string, i string, b blocks.Block) int {
+	return m.addBackupLoad(t, i, b)
+}
+
+func (m *impl) BackupLoad() []Load {
+	return m.backupLoad
+}
+
+func (m *impl) addBackupLoad(t []string, i string, b blocks.Block) int {
+	load := Load{
+		TargetPeerList: t,
+		IdHash:         i,
+		Block:          b,
+	}
+	m.backupLoad = append(m.backupLoad, load)
+	return 0
 }
 
 func (m *impl) addEntry(c cid.Cid, priority int32, cancel bool, wantType pb.Message_Wantlist_WantType, sendDontHave bool) int {

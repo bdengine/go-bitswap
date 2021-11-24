@@ -3,7 +3,7 @@ package bitswap
 import (
 	"fmt"
 	blocks "github.com/ipfs/go-block-format"
-	"github.com/ipfs/go-ipfs-auth/standard"
+	standard "github.com/ipfs/go-ipfs-auth/standard/model"
 	"testing"
 )
 

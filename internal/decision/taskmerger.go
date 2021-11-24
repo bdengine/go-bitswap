@@ -16,6 +16,12 @@ type taskData struct {
 	HaveBlock bool
 }
 
+type taskBackupData struct {
+	// 备份负载
+	TargetPeerList []string
+	IdHash         string
+}
+
 type taskMerger struct{}
 
 func newTaskMerger() *taskMerger {

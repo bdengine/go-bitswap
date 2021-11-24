@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"sync"
 	"time"
 
@@ -28,9 +27,9 @@ import (
 	bsnet "github.com/ipfs/go-bitswap/network"
 	blocks "github.com/ipfs/go-block-format"
 	cid "github.com/ipfs/go-cid"
+	"github.com/ipfs/go-datastore"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	exchange "github.com/ipfs/go-ipfs-exchange-interface"
-	"github.com/ipfs/go-ipfs-pinner"
 	logging "github.com/ipfs/go-log"
 	metrics "github.com/ipfs/go-metrics-interface"
 	process "github.com/jbenet/goprocess"
@@ -123,7 +122,7 @@ func WithScoreLedger(scoreLedger deciface.ScoreLedger) Option {
 // BitSwapNetwork. This function registers the returned instance as the network
 // delegate. Runs until context is cancelled or bitswap.Close is called.
 func New(parent context.Context, network bsnet.BitSwapNetwork,
-	bstore blockstore.Blockstore, options ...Option) exchange.Interface {
+	bstore blockstore.Blockstore, ds datastore.Datastore, options ...Option) exchange.Interface {
 
 	// important to use provided parent context (since it may include important
 	// loggable data). It's probably not a good idea to allow bitswap to be
@@ -202,8 +201,6 @@ func New(parent context.Context, network bsnet.BitSwapNetwork,
 		provSearchDelay:         defaultProvSearchDelay,
 		rebroadcastDelay:        delay.Fixed(time.Minute),
 		engineBstoreWorkerCount: defaulEngineBlockstoreWorkerCount,
-		// TODO 传入或者创建有效的pinner
-		pinner: nil,
 	}
 
 	// apply functional options before starting and running bitswap
@@ -212,8 +209,7 @@ func New(parent context.Context, network bsnet.BitSwapNetwork,
 	}
 
 	// Set up decision engine
-	bs.engine = decision.NewEngine(bstore, bs.engineBstoreWorkerCount, network.ConnectionManager(), network.Self(), bs.engineScoreLedger)
-
+	bs.engine = decision.NewEngine(bstore, bs.engineBstoreWorkerCount, network.ConnectionManager(), network.Self(), bs.engineScoreLedger, ds)
 	bs.pqm.Startup()
 	network.SetDelegate(bs)
 
@@ -296,8 +292,10 @@ type Bitswap struct {
 
 	// the score ledger used by the decision engine
 	engineScoreLedger deciface.ScoreLedger
+}
 
-	pinner pin.Pinner
+func (bs *Bitswap) LitePeerPushTasks(backupLoadList []bsmsg.Load) {
+	bs.engine.LitePeerPushTasks(backupLoadList)
 }
 
 type counters struct {
@@ -360,39 +358,18 @@ func (bs *Bitswap) receiveBlocksFrom(ctx context.Context, from peer.ID, blks []b
 		return errors.New("bitswap is closed")
 	default:
 	}
-	fmt.Printf("recive block from %s ", from.String())
+	//fmt.Printf("recive block from %s ", from.String())
 	wanted := blks
 
 	// TODO 根据身份切换策略
 	// client 端
 	// If blocks came from the network
-	/*if from != "" {
+	if from != "" {
 		var notWanted []blocks.Block
 		wanted, notWanted = bs.sim.SplitWantedUnwanted(blks)
 		for _, b := range notWanted {
 			log.Debugf("[recv] block not in wantlist; cid=%s, peer=%s", b.Cid(), from)
 		}
-	}
-
-
-	*/
-
-	// server 端
-	// todo 验证文件发送方的身份是否合法(此项验证应该移到节点连接时)
-	// Put wanted blocks into blockstore
-	if len(wanted) > 0 {
-		err := bs.blockstore.PutMany(wanted)
-		if err != nil {
-			log.Errorf("Error writing %d blocks to datastore: %s", len(wanted), err)
-			return err
-		}
-
-		// server
-		// todo pin and provide block
-		/*for _, block := range wanted {
-			bs.pinner.PinWithMode(block.Cid(),pin.Direct)
-		}*/
-
 	}
 
 	// NOTE: There exists the possiblity for a race condition here.  If a user
@@ -463,6 +440,19 @@ func (bs *Bitswap) ReceiveMessage(ctx context.Context, p peer.ID, incoming bsmsg
 	bs.engine.MessageReceived(ctx, p, incoming)
 	// TODO: this is bad, and could be easily abused.
 	// Should only track *useful* messages in ledger
+
+	// todo corePeer 处理backupInfo
+	loadList := incoming.BackupLoad()
+
+	if len(loadList) > 0 {
+		var bl []blocks.Block
+		for _, load := range loadList {
+			bl = append(bl, load.Block)
+		}
+		bs.blockstore.PutMany(bl)
+		// todo Pin 后续可能会改变corePeer的GC逻辑,暂时不实现Pin
+		bs.engine.BackupLoadReceived(p, loadList)
+	}
 
 	if bs.wiretap != nil {
 		bs.wiretap.MessageReceived(p, incoming)

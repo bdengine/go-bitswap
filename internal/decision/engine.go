@@ -4,7 +4,9 @@ package decision
 import (
 	"context"
 	"fmt"
+	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-ipfs-auth/selector"
+	"github.com/ipfs/go-ipfs-backup/backup"
 	"github.com/ipfs/go-merkledag"
 	"sync"
 	"time"
@@ -15,13 +17,13 @@ import (
 	pb "github.com/ipfs/go-bitswap/message/pb"
 	wl "github.com/ipfs/go-bitswap/wantlist"
 	blocks "github.com/ipfs/go-block-format"
-	cid "github.com/ipfs/go-cid"
+	"github.com/ipfs/go-cid"
 	bstore "github.com/ipfs/go-ipfs-blockstore"
 	logging "github.com/ipfs/go-log"
 	"github.com/ipfs/go-peertaskqueue"
 	"github.com/ipfs/go-peertaskqueue/peertask"
 	process "github.com/jbenet/goprocess"
-	peer "github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 // TODO consider taking responsibility for other types of requests. For
@@ -141,6 +143,7 @@ type Engine struct {
 	outbox chan (<-chan *Envelope)
 
 	bsm *blockstoreManager
+	Ds  datastore.Datastore
 
 	peerTagger PeerTagger
 
@@ -169,13 +172,13 @@ type Engine struct {
 }
 
 // NewEngine creates a new block sending engine for the given block store
-func NewEngine(bs bstore.Blockstore, bstoreWorkerCount int, peerTagger PeerTagger, self peer.ID, scoreLedger ScoreLedger) *Engine {
-	return newEngine(bs, bstoreWorkerCount, peerTagger, self, maxBlockSizeReplaceHasWithBlock, scoreLedger)
+func NewEngine(bs bstore.Blockstore, bstoreWorkerCount int, peerTagger PeerTagger, self peer.ID, scoreLedger ScoreLedger, ds datastore.Datastore) *Engine {
+	return newEngine(bs, bstoreWorkerCount, peerTagger, self, maxBlockSizeReplaceHasWithBlock, scoreLedger, ds)
 }
 
 // This constructor is used by the tests
 func newEngine(bs bstore.Blockstore, bstoreWorkerCount int, peerTagger PeerTagger, self peer.ID,
-	maxReplaceSize int, scoreLedger ScoreLedger) *Engine {
+	maxReplaceSize int, scoreLedger ScoreLedger, ds datastore.Datastore) *Engine {
 
 	if scoreLedger == nil {
 		scoreLedger = NewDefaultScoreLedger()
@@ -193,6 +196,7 @@ func newEngine(bs bstore.Blockstore, bstoreWorkerCount int, peerTagger PeerTagge
 		taskWorkerCount:                 taskWorkerCount,
 		sendDontHaves:                   true,
 		self:                            self,
+		Ds:                              ds,
 	}
 	e.tagQueued = fmt.Sprintf(tagFormat, "queued", uuid.New().String())
 	e.tagUseful = fmt.Sprintf(tagFormat, "useful", uuid.New().String())
@@ -339,6 +343,17 @@ func (e *Engine) nextEnvelope(ctx context.Context) (*Envelope, error) {
 		blockTasks := make(map[cid.Cid]*taskData, len(nextTasks))
 		for _, t := range nextTasks {
 			c := t.Topic.(cid.Cid)
+			if t.IsBackup {
+				td := t.Data.(*taskBackupData)
+				// todo 添加负载
+				b, err := e.bsm.getBlocks(ctx, []cid.Cid{c})
+				if err != nil {
+					log.Errorf("分发文件片%v失败，err：%v", c.String(), err)
+					continue
+				}
+				msg.AddBackupLoad(td.TargetPeerList, td.IdHash, b[c])
+				continue
+			}
 			td := t.Data.(*taskData)
 			if td.HaveBlock {
 				if td.IsWantBlock {
@@ -363,17 +378,6 @@ func (e *Engine) nextEnvelope(ctx context.Context) (*Envelope, error) {
 
 		for c, t := range blockTasks {
 			blk := blks[c]
-			pn, err := merkledag.DecodeProtobuf(blk.RawData())
-			if err == nil {
-				info := pn.GetPBNode().BlockInfo
-				_, _, auth, _ := cid.ParseBlocInfo(*info)
-				if auth == cid.Auth_Y {
-					_, err := selector.ResponseApply(c.String(), p.String())
-					if err != nil {
-						continue
-					}
-				}
-			}
 			// If the block was not found (it has been removed)
 			if blk == nil {
 				// If the client requested DONT_HAVE, add DONT_HAVE to the message
@@ -381,6 +385,30 @@ func (e *Engine) nextEnvelope(ctx context.Context) (*Envelope, error) {
 					msg.AddDontHave(c)
 				}
 			} else {
+				auth, _ := cid.ParseBlocInfoMask(c.Prefix().BlockInfo, cid.Auth)
+				// cid标记需要鉴权
+				if auth == cid.Auth_Y {
+					_, err := selector.ResponseApply(c.String(), p.String())
+					// 鉴权未通过，可能是没有相应权限，也可能是已经有其他节点处理过了,跳过 todo 添加鉴权不通过消息
+					if err != nil {
+						continue
+					}
+					// cid显示不需要鉴权
+				} else {
+					pn, err := merkledag.DecodeProtobuf(blk.RawData())
+					// 解析Protobuf，失败时为普通叶子节点，不需要鉴权
+					// 成功时为可能是头节点，可能需要鉴权
+					if err == nil {
+						info := pn.GetPBNode().BlockInfo
+						auth, _ = cid.ParseBlocInfoMask(*info, cid.Auth)
+						if auth == cid.Auth_Y {
+							// cid 和块中记录的鉴权信息不一样，说明cid作假，节点有作恶嫌疑
+							//todo 记录节点行为
+							// todo 添加鉴权不通过消息
+							continue
+						}
+					}
+				}
 				// Add the block to the message
 				// log.Debugf("  make evlp %s->%s block: %s (%d bytes)", e.self, p, c, len(blk.RawData()))
 				msg.AddBlock(blk)
@@ -556,6 +584,93 @@ func (e *Engine) MessageReceived(ctx context.Context, p peer.ID, m bsmsg.BitSwap
 	}
 }
 
+func (e *Engine) BackupLoadReceived(p peer.ID, loadList []bsmsg.Load) {
+	e.lock.RLock()
+	self := e.self
+	e.lock.RUnlock()
+	// 判断自己的身份，是重节点，处理loadList
+	if selector.DefaultRole == selector.RoleCore {
+		// 判断 发送者 peer.ID的身份，来自 LitePeer 需要分发
+		if !selector.IsCorePeer(p.String()) {
+			// ds记录相关信息
+			backup.Puts(e.Ds, loadList)
+			e.CorePeerPushTasks(loadList, self)
+			// 提醒 新任务到了
+			e.signalNewWork()
+		} else {
+			// 来自 corePeer 只需要保存和记录
+			backup.Puts(e.Ds, loadList)
+		}
+	} else {
+		// litePeer 不做任何事情 todo 后续考虑记录和反馈这个不应该存在的操作
+	}
+}
+
+func (e *Engine) LitePeerPushTasks(backupLoadList []bsmsg.Load) {
+	for _, load := range backupLoadList {
+		var to peer.ID
+		for _, s := range load.TargetPeerList {
+			temp, err := peer.Decode(s)
+			if err != nil {
+				continue
+			}
+			// todo 检查是否能联通peer
+			to = temp
+			break
+		}
+		//任务大小
+		work := load.Size()
+		// todo 优先级
+		priority := 0
+
+		topic := load.Block.Cid()
+		task := peertask.Task{
+			Topic:    topic,
+			Priority: priority,
+			Work:     work,
+			IsBackup: true,
+			Data: &taskBackupData{
+				TargetPeerList: load.TargetPeerList,
+				IdHash:         load.IdHash,
+			},
+		}
+		e.peerRequestQueue.PushTasks(to, task)
+	}
+}
+
+func (e *Engine) CorePeerPushTasks(backupLoadList []bsmsg.Load, self peer.ID) {
+	for _, load := range backupLoadList {
+		//任务大小
+		work := load.Size()
+		// todo 优先级
+		priority := 0
+
+		topic := load.Block.Cid()
+		task := peertask.Task{
+			Topic:    topic,
+			Priority: priority,
+			Work:     work,
+			IsBackup: true,
+			Data: &taskBackupData{
+				TargetPeerList: load.TargetPeerList,
+				IdHash:         load.IdHash,
+			},
+		}
+		for _, s := range load.TargetPeerList {
+			to, err := peer.Decode(s)
+			if err != nil {
+				// todo 处理这个错误
+				continue
+			}
+			// 跳过自己
+			if to == self {
+				continue
+			}
+			e.peerRequestQueue.PushTasks(to, task)
+		}
+	}
+}
+
 // Split the want-have / want-block entries from the cancel entries
 func (e *Engine) splitWantsCancels(es []bsmsg.Entry) ([]bsmsg.Entry, []bsmsg.Entry) {
 	wants := make([]bsmsg.Entry, 0, len(es))
@@ -654,6 +769,10 @@ func (e *Engine) MessageSent(p peer.ID, m bsmsg.BitSwapMessage) {
 	l := e.findOrCreate(p)
 	l.lk.Lock()
 	defer l.lk.Unlock()
+
+	err := backup.Puts(e.Ds, m.BackupLoad())
+	// 记录可能出现的错误   todo 处理错误
+	log.Error(err)
 
 	// Remove sent blocks from the want list for the peer
 	for _, block := range m.Blocks() {

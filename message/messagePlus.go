@@ -32,11 +32,19 @@ type backupLoad struct {
 	block blocks.Block
 }
 
+type checkLoad map[cid.Cid][]idHash
+
 type deleteLoad struct {
 	// 文件唯一id
 	uuid string
 	// 文件片cid
 	cid cid.Cid
+}
+
+type backupInfo struct {
+	idHashPin      map[idHash]struct{}
+	idHashUnpin    map[idHash]uuid
+	targetPeerList []peer.ID
 }
 
 type storeLoad struct {
