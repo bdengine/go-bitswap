@@ -294,8 +294,8 @@ type Bitswap struct {
 	engineScoreLedger deciface.ScoreLedger
 }
 
-func (bs *Bitswap) LitePeerPushTasks(backupLoadList []bsmsg.Load) {
-	bs.engine.LitePeerPushTasks(backupLoadList)
+func (bs *Bitswap) PushTasks(backupLoadList []bsmsg.Load) {
+	bs.engine.PushTasks(backupLoadList)
 }
 
 type counters struct {
@@ -445,13 +445,18 @@ func (bs *Bitswap) ReceiveMessage(ctx context.Context, p peer.ID, incoming bsmsg
 	loadList := incoming.BackupLoad()
 
 	if len(loadList) > 0 {
+		log.Info("接受到备份信息")
 		var bl []blocks.Block
 		for _, load := range loadList {
 			bl = append(bl, load.Block)
 		}
-		bs.blockstore.PutMany(bl)
-		// todo Pin 后续可能会改变corePeer的GC逻辑,暂时不实现Pin
+		err := bs.blockstore.PutMany(bl)
+		if err != nil {
+			log.Error(err)
+		}
+		// todo Pin
 		bs.engine.BackupLoadReceived(p, loadList)
+		log.Info("备份信息处理结束")
 	}
 
 	if bs.wiretap != nil {

@@ -52,15 +52,16 @@ func (bs *Bitswap) taskWorker(ctx context.Context, id int) {
 				if !ok {
 					continue
 				}
-
-				// TODO: Only record message as sent if there was no error?
-				// Ideally, yes. But we'd need some way to trigger a retry and/or drop
-				// the peer.
-				bs.engine.MessageSent(envelope.Peer, envelope.Message)
-				if bs.wiretap != nil {
-					bs.wiretap.MessageSent(envelope.Peer, envelope.Message)
+				err := bs.sendBlocks(ctx, envelope)
+				if err == nil {
+					// 无错误时记录发送消息
+					bs.engine.MessageSent(envelope.Peer, envelope.Message)
+					if bs.wiretap != nil {
+						bs.wiretap.MessageSent(envelope.Peer, envelope.Message)
+					}
+				} else {
+					// 记录错误和重试
 				}
-				bs.sendBlocks(ctx, envelope)
 			case <-ctx.Done():
 				return
 			}
@@ -128,7 +129,7 @@ func (bs *Bitswap) SendBlocks(ctx context.Context, idString string, message bsms
 	}
 }
 
-func (bs *Bitswap) sendBlocks(ctx context.Context, env *engine.Envelope) {
+func (bs *Bitswap) sendBlocks(ctx context.Context, env *engine.Envelope) error {
 	// Blocks need to be sent synchronously to maintain proper backpressure
 	// throughout the network stack
 	defer env.Sent()
@@ -139,7 +140,7 @@ func (bs *Bitswap) sendBlocks(ctx context.Context, env *engine.Envelope) {
 			"peer", env.Peer,
 			"error", err,
 		)
-		return
+		return err
 	}
 
 	bs.logOutgoingBlocks(env)
@@ -155,6 +156,7 @@ func (bs *Bitswap) sendBlocks(ctx context.Context, env *engine.Envelope) {
 	bs.counterLk.Unlock()
 	bs.sentHistogram.Observe(float64(env.Message.Size()))
 	log.Debugw("sent message", "peer", env.Peer)
+	return nil
 }
 
 func (bs *Bitswap) provideWorker(px process.Process) {

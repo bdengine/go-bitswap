@@ -30,3 +30,19 @@ func TestCID(t *testing.T) {
 		t.Fatal("failed to correctly encode custom CID type")
 	}
 }
+
+func maxPower(s string) int {
+	max := 1
+	temp := 1
+	for i := 1; i < len(s); i++ {
+		if s[i] == s[i-1] {
+			temp++
+		} else {
+			temp = 1
+		}
+		if temp > max {
+			max = temp
+		}
+	}
+	return max
+}

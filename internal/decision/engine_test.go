@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -27,6 +28,88 @@ import (
 type peerTag struct {
 	done  chan struct{}
 	peers map[peer.ID]int
+}
+
+func TestQ(t *testing.T) {
+	nums := []int{2, -3, -1, 5, -4}
+	k := 2
+	fmt.Println(largestSumAfterKNegations(nums, k))
+	fmt.Println(largestSumAfterKNegations2(nums, k))
+}
+
+func largestSumAfterKNegations(nums []int, k int) int {
+	sort.Slice(nums, func(i, j int) bool {
+		return nums[i] < nums[j]
+	})
+	min := getAbs(nums[0])
+	res := 0
+	for _, num := range nums {
+		if num < 0 {
+			if k > 0 {
+				k--
+				min = getMin(min, -num)
+				res += -num
+			} else {
+				res += num
+			}
+		} else {
+			min = getMin(min, num)
+			res += num
+		}
+	}
+	if k == 0 || k%2 == 0 {
+		return res
+	} else {
+		return res - 2*min
+	}
+}
+
+func largestSumAfterKNegations2(nums []int, k int) int {
+	bucket := make([]int, 201)
+	for _, num := range nums {
+		bucket[num+100] += 1
+	}
+	min := getAbs(nums[0])
+	res := 0
+	for i, num := range bucket {
+		if num == 0 {
+			continue
+		}
+		if i < 100 {
+			for num > 0 {
+				if k > 0 {
+					k--
+					res += 100 - i
+					min = getMin(min, 100-i)
+				} else {
+					res += i - 100
+				}
+				num--
+			}
+		} else {
+			res += num * (i - 100)
+			min = getMin(min, i-100)
+		}
+	}
+	if k == 0 || k%2 == 0 {
+		return res
+	} else {
+		return res - 2*min
+	}
+}
+
+func getAbs(i int) int {
+	if i >= 0 {
+		return i
+	}
+	return -i
+}
+
+func getMin(i, j int) int {
+	if i > j {
+		return j
+	}
+	return i
 }
 
 type fakePeerTagger struct {

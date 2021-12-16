@@ -249,6 +249,29 @@ func newMessageFromProto(pbm pb.Message) (BitSwapMessage, error) {
 		m.addEntry(e.Block.Cid, e.Priority, e.Cancel, e.WantType, e.SendDontHave)
 	}
 
+	m.backupLoad = make([]Load, len(pbm.BackupLoad))
+	for i, load := range pbm.BackupLoad {
+		pref, err := cid.PrefixFromBytes(load.Block.GetPrefix())
+		if err != nil {
+			return nil, err
+		}
+
+		c, err := pref.Sum(load.Block.GetData())
+		if err != nil {
+			return nil, err
+		}
+
+		blk, err := blocks.NewBlockWithCid(load.Block.GetData(), c)
+		if err != nil {
+			return nil, err
+		}
+		m.backupLoad[i] = Load{
+			TargetPeerList: load.TargetPeerList,
+			IdHash:         load.IdHash,
+			Block:          blk,
+		}
+	}
+
 	// deprecated
 	for _, d := range pbm.Blocks {
 		// CIDv0, sha256, protobuf only
@@ -293,7 +316,7 @@ func (m *impl) Full() bool {
 }
 
 func (m *impl) Empty() bool {
-	return len(m.blocks) == 0 && len(m.wantlist) == 0 && len(m.blockPresences) == 0
+	return len(m.blocks) == 0 && len(m.wantlist) == 0 && len(m.blockPresences) == 0 && len(m.backupLoad) == 0
 }
 
 func (m *impl) Wantlist() []Entry {
@@ -486,6 +509,20 @@ func (m *impl) ToProtoV0() *pb.Message {
 	}
 	pbm.Wantlist.Full = m.full
 
+	loads := m.BackupLoad()
+	pbm.BackupLoad = make([]*pb.Message_BackupLoad, len(loads))
+
+	for i, load := range loads {
+		pbm.BackupLoad[i] = &pb.Message_BackupLoad{
+			TargetPeerList: load.TargetPeerList,
+			IdHash:         load.IdHash,
+			Block: &pb.Message_Block{
+				Prefix: load.Block.Cid().Prefix().Bytes(),
+				Data:   load.Block.RawData(),
+			},
+		}
+	}
+
 	blocks := m.Blocks()
 	pbm.Blocks = make([][]byte, 0, len(blocks))
 	for _, b := range blocks {
@@ -509,6 +546,20 @@ func (m *impl) ToProtoV1() *pb.Message {
 			Data:   b.RawData(),
 			Prefix: b.Cid().Prefix().Bytes(),
 		})
+	}
+
+	loads := m.BackupLoad()
+	pbm.BackupLoad = make([]*pb.Message_BackupLoad, len(loads))
+
+	for i, load := range loads {
+		pbm.BackupLoad[i] = &pb.Message_BackupLoad{
+			TargetPeerList: load.TargetPeerList,
+			IdHash:         load.IdHash,
+			Block: &pb.Message_Block{
+				Prefix: load.Block.Cid().Prefix().Bytes(),
+				Data:   load.Block.RawData(),
+			},
+		}
 	}
 
 	pbm.BlockPresences = make([]pb.Message_BlockPresence, 0, len(m.blockPresences))
