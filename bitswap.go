@@ -454,7 +454,11 @@ func (bs *Bitswap) ReceiveMessage(ctx context.Context, p peer.ID, incoming bsmsg
 		if err != nil {
 			log.Error(err)
 		}
-		// todo Pin
+		// provide
+		for _, load := range loadList {
+			bs.newBlocks <- load.Block.Cid()
+		}
+		// todo Pin (for now,we never run GC,so it is ok)
 		bs.engine.BackupLoadReceived(p, loadList)
 		log.Info("备份信息处理结束")
 	}
