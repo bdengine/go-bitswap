@@ -4,8 +4,8 @@ package decision
 import (
 	"context"
 	"fmt"
+	"github.com/bdengine/go-ipfs-blockchain-selector"
 	"github.com/ipfs/go-datastore"
-	"github.com/ipfs/go-ipfs-auth/selector"
 	"github.com/ipfs/go-ipfs-backup/backup"
 	"sync"
 	"time"

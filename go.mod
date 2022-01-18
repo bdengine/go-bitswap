@@ -8,8 +8,8 @@ require (
 	github.com/ipfs/go-cid v0.0.7
 	github.com/ipfs/go-datastore v0.4.5
 	github.com/ipfs/go-detect-race v0.0.1
-	github.com/ipfs/go-ipfs-auth/selector v0.0.0
-	github.com/ipfs/go-ipfs-auth/standard v0.0.0
+	github.com/bdengine/go-ipfs-blockchain-selector v0.0.2
+	github.com/bdengine/go-ipfs-blockchain-standard v0.0.1
 	github.com/ipfs/go-ipfs-backup v0.0.0
 	github.com/ipfs/go-ipfs-blockstore v0.1.4
 	github.com/ipfs/go-ipfs-blocksutil v0.0.1
@@ -35,11 +35,10 @@ require (
 
 replace (
 	github.com/ipfs/go-cid => ../ipld/cid/go-cid
-	github.com/ipfs/go-ipfs-auth/auth-source-eth => ../go-ipfs-auth/auth-source-eth
-	github.com/ipfs/go-ipfs-auth/selector => ../go-ipfs-auth/selector
-	github.com/ipfs/go-ipfs-auth/standard => ../go-ipfs-auth/standard
+	github.com/bdengine/go-ipfs-blockchain-eth => ../go-ipfs-auth/auth-source-eth
+	github.com/bdengine/go-ipfs-blockchain-selector => ../go-ipfs-auth/selector
+	github.com/bdengine/go-ipfs-blockchain-standard => ../go-ipfs-auth/standard
 	github.com/ipfs/go-ipfs-backup => ../go-ipfs-backup
-	github.com/ipfs/go-merkledag => ../ipld/go-ipld-merkledag
 	github.com/ipfs/go-peertaskqueue => ../go-peertaskqueue
 )
 

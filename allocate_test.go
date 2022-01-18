@@ -2,8 +2,8 @@ package bitswap
 
 import (
 	"fmt"
+	standard "github.com/bdengine/go-ipfs-blockchain-standard/model"
 	blocks "github.com/ipfs/go-block-format"
-	standard "github.com/ipfs/go-ipfs-auth/standard/model"
 	"testing"
 )
 
