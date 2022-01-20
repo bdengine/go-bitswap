@@ -2,8 +2,8 @@ module github.com/bdengine/go-bitswap
 
 require (
 	github.com/Hyperledger-TWGC/tjfoc-gm v1.4.0
-	github.com/bdengine/go-ipfs-blockchain-selector latest
-	github.com/bdengine/go-ipfs-blockchain-standard latest
+	github.com/bdengine/go-ipfs-blockchain-selector v0.0.4
+	github.com/bdengine/go-ipfs-blockchain-standard v0.0.2
 	github.com/cskr/pubsub v1.0.2
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.4.3
@@ -38,6 +38,8 @@ require (
 replace (
 	github.com/ipfs/go-cid => github.com/bdengine/go-cid latest
 	github.com/ipfs/go-peertaskqueue => github.com/bdengine/go-peertaskqueue latest
+	github.com/bdengine/go-ipfs-blockchain-selector => github.com/bdengine/go-ipfs-blockchain-selector latest
+	github.com/bdengine/go-ipfs-blockchain-standard => github.com/bdengine/go-ipfs-blockchain-standard latest
 )
 
 go 1.15
