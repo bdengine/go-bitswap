@@ -3,8 +3,8 @@ package decision
 import (
 	"sync"
 
-	pb "github.com/ipfs/go-bitswap/message/pb"
-	wl "github.com/ipfs/go-bitswap/wantlist"
+	pb "github.com/bdengine/go-bitswap/message/pb"
+	wl "github.com/bdengine/go-bitswap/wantlist"
 
 	cid "github.com/ipfs/go-cid"
 	peer "github.com/libp2p/go-libp2p-core/peer"

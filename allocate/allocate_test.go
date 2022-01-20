@@ -2,7 +2,7 @@ package allocate
 
 import (
 	"fmt"
-	"github.com/ipfs/go-bitswap/message"
+	"github.com/bdengine/go-bitswap/message"
 	blocks "github.com/ipfs/go-block-format"
 )
 

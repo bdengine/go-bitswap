@@ -1,7 +1,7 @@
 package message
 
 import (
-	pb "github.com/ipfs/go-bitswap/message/pb"
+	pb "github.com/bdengine/go-bitswap/message/pb"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"

@@ -3,7 +3,7 @@ package backup
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ipfs/go-bitswap/message"
+	"github.com/bdengine/go-bitswap/message"
 	"github.com/ipfs/go-datastore"
 )
 

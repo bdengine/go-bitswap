@@ -1,9 +1,9 @@
 package allocate
 
 import (
+	"github.com/bdengine/go-bitswap/backup"
+	bsmsg "github.com/bdengine/go-bitswap/message"
 	model "github.com/bdengine/go-ipfs-blockchain-standard/model"
-	"github.com/ipfs/go-bitswap/backup"
-	bsmsg "github.com/ipfs/go-bitswap/message"
 	"math/rand"
 	"time"
 )

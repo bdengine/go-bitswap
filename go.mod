@@ -1,15 +1,17 @@
-module github.com/ipfs/go-bitswap
+module github.com/bdengine/go-bitswap
 
 require (
+	github.com/Hyperledger-TWGC/tjfoc-gm v1.4.0
+	github.com/bdengine/go-ipfs-blockchain-selector latest
+	github.com/bdengine/go-ipfs-blockchain-standard latest
 	github.com/cskr/pubsub v1.0.2
 	github.com/gogo/protobuf v1.3.2
+	github.com/golang/protobuf v1.4.3
 	github.com/google/uuid v1.2.0
 	github.com/ipfs/go-block-format v0.0.3
 	github.com/ipfs/go-cid v0.0.7
 	github.com/ipfs/go-datastore v0.4.5
 	github.com/ipfs/go-detect-race v0.0.1
-	github.com/bdengine/go-ipfs-blockchain-selector v0.0.2
-	github.com/bdengine/go-ipfs-blockchain-standard v0.0.1
 	github.com/ipfs/go-ipfs-blockstore v0.1.4
 	github.com/ipfs/go-ipfs-blocksutil v0.0.1
 	github.com/ipfs/go-ipfs-delay v0.0.1
@@ -30,14 +32,12 @@ require (
 	github.com/multiformats/go-multiaddr v0.3.1
 	github.com/multiformats/go-multistream v0.2.0
 	go.uber.org/zap v1.16.0
+	google.golang.org/protobuf v1.23.0
 )
 
 replace (
-	github.com/ipfs/go-cid => ../go-cid
-	github.com/bdengine/go-ipfs-blockchain-eth => ../go-ipfs-blockchain-eth
-	github.com/bdengine/go-ipfs-blockchain-selector => ../go-ipfs-blockchain-selector
-	github.com/bdengine/go-ipfs-blockchain-standard => ../go-ipfs-blockchain-standard
-	github.com/ipfs/go-peertaskqueue => ../go-peertaskqueue
+	github.com/ipfs/go-cid => github.com/bdengine/go-cid latest
+	github.com/ipfs/go-peertaskqueue => github.com/bdengine/go-peertaskqueue latest
 )
 
-go 1.12
+go 1.15
