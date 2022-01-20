@@ -3,7 +3,7 @@ package session
 import (
 	"testing"
 
-	"github.com/bdengine/go-bitswap/internal/testutil"
+	"github.com/ipfs/go-bitswap/internal/testutil"
 )
 
 func TestEmptyWantInfo(t *testing.T) {

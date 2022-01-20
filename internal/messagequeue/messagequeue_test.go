@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bdengine/go-bitswap/internal/testutil"
-	pb "github.com/bdengine/go-bitswap/message/pb"
+	"github.com/ipfs/go-bitswap/internal/testutil"
+	pb "github.com/ipfs/go-bitswap/message/pb"
 	cid "github.com/ipfs/go-cid"
 
-	bsmsg "github.com/bdengine/go-bitswap/message"
-	bsnet "github.com/bdengine/go-bitswap/network"
+	bsmsg "github.com/ipfs/go-bitswap/message"
+	bsnet "github.com/ipfs/go-bitswap/network"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 )

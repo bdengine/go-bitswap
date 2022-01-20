@@ -3,9 +3,9 @@ package bitswap
 import (
 	"context"
 	"fmt"
-	engine "github.com/bdengine/go-bitswap/internal/decision"
-	bsmsg "github.com/bdengine/go-bitswap/message"
-	pb "github.com/bdengine/go-bitswap/message/pb"
+	engine "github.com/ipfs/go-bitswap/internal/decision"
+	bsmsg "github.com/ipfs/go-bitswap/message"
+	pb "github.com/ipfs/go-bitswap/message/pb"
 	cid "github.com/ipfs/go-cid"
 	process "github.com/jbenet/goprocess"
 	procctx "github.com/jbenet/goprocess/context"

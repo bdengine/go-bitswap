@@ -3,7 +3,7 @@ package sessioninterestmanager
 import (
 	"testing"
 
-	"github.com/bdengine/go-bitswap/internal/testutil"
+	"github.com/ipfs/go-bitswap/internal/testutil"
 	cid "github.com/ipfs/go-cid"
 )
 

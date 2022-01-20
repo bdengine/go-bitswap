@@ -1,7 +1,7 @@
 package bitswap
 
 import (
-	bsmsg "github.com/bdengine/go-bitswap/message"
+	bsmsg "github.com/ipfs/go-bitswap/message"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 

@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bdengine/go-bitswap/internal/testutil"
-	message "github.com/bdengine/go-bitswap/message"
-	pb "github.com/bdengine/go-bitswap/message/pb"
+	"github.com/ipfs/go-bitswap/internal/testutil"
+	message "github.com/ipfs/go-bitswap/message"
+	pb "github.com/ipfs/go-bitswap/message/pb"
 
 	blocks "github.com/ipfs/go-block-format"
 	cid "github.com/ipfs/go-cid"

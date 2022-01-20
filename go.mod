@@ -1,4 +1,4 @@
-module github.com/bdengine/go-bitswap
+module github.com/ipfs/go-bitswap
 
 require (
 	github.com/Hyperledger-TWGC/tjfoc-gm v1.4.0
